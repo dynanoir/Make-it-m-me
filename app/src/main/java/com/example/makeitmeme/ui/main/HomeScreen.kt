@@ -22,19 +22,17 @@ import java.io.FileOutputStream
 import kotlin.random.Random
 
 @Composable
-fun HomeScreen(user: FirebaseUser, onLogout: () -> Unit) {
+fun HomeScreen(user: FirebaseUser, onBackToMenu: () -> Unit, onLogout: () -> Unit) {
     val context = LocalContext.current
     val memeImages = listOf(
         com.example.makeitmeme.R.drawable.meme1,
         com.example.makeitmeme.R.drawable.meme2,
         com.example.makeitmeme.R.drawable.meme3
     )
-    val randomImageRes = remember {
-        memeImages[Random.nextInt(memeImages.size)]
+    var randomImageRes by remember {
+        mutableStateOf(memeImages[Random.nextInt(memeImages.size)])
     }
-    val memeBitmap = remember {
-        BitmapFactory.decodeResource(context.resources, randomImageRes)
-    }
+    val memeBitmap = BitmapFactory.decodeResource(context.resources, randomImageRes)
     var topText by remember { mutableStateOf("") }
     var bottomText by remember { mutableStateOf("") }
 
@@ -95,24 +93,73 @@ fun HomeScreen(user: FirebaseUser, onLogout: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         )
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Button(
+                onClick = {
+                    val newImage = memeImages.filterNot { it == randomImageRes }.random()
+                    randomImageRes = newImage
+                    topText = ""
+                    bottomText = ""
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("🔁 Changer le mème")
+            }
+
+            Button(
+                onClick = {
+                    onBackToMenu()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Text("⬅️ Retour au menu")
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = {
-            val finalBitmap = generateMemeBitmap(memeBitmap, topText, bottomText)
-            val savedFile = saveBitmapToGallery(context, finalBitmap)
-            if (savedFile != null) {
-                Toast.makeText(context, "Image sauvegardée : ${savedFile.absolutePath}", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(context, "Erreur lors de la sauvegarde", Toast.LENGTH_SHORT).show()
-            }
-        }) {
+        Button(
+            onClick = {
+                val finalBitmap = generateMemeBitmap(memeBitmap, topText, bottomText)
+                val savedFile = saveBitmapToGallery(context, finalBitmap)
+                if (savedFile != null) {
+                    Toast.makeText(context, "Image sauvegardée : ${savedFile.absolutePath}", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Erreur lors de la sauvegarde", Toast.LENGTH_SHORT).show()
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+        ) {
             Text("Générer / Sauvegarder le mème")
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        val dbRef = FirebaseDatabase.getInstance()
-            .reference.child("messages").child(user.uid)
+        Button(
+            onClick = {
+                val finalBitmap = generateMemeBitmap(memeBitmap, topText, bottomText)
+                val savedFile = saveBitmapToGallery(context, finalBitmap)
+                if (savedFile != null) {
+                    val dbRef = FirebaseDatabase.getInstance()
+                        .reference.child("messages").child("public")
+                    dbRef.push().setValue("📸 Mème partagé par ${user.email} : ${savedFile.absolutePath}")
+                    Toast.makeText(context, "Mème envoyé dans le chat en ligne", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Erreur lors de l'envoi", Toast.LENGTH_SHORT).show()
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("📨 Envoyer dans le chat en ligne")
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
 
         RealtimeDatabaseSection()
 
@@ -154,7 +201,6 @@ fun saveBitmapToGallery(context: android.content.Context, bitmap: Bitmap): File?
         output.flush()
         output.close()
 
-        // Afficher l’image dans la galerie (Photos)
         MediaScannerConnection.scanFile(
             context,
             arrayOf(file.absolutePath),

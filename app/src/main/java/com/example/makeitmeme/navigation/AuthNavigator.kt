@@ -57,6 +57,9 @@ fun AuthNavigator() {
 
             Screen.JEU -> HomeScreen(
                 user = currentUser!!,
+                onBackToMenu = {
+                    currentScreen = Screen.MENU
+                },
                 onLogout = {
                     auth.signOut()
                     currentScreen = Screen.MENU
