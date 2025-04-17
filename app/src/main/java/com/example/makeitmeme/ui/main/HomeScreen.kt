@@ -29,8 +29,12 @@ fun HomeScreen(user: FirebaseUser, onLogout: () -> Unit) {
         com.example.makeitmeme.R.drawable.meme2,
         com.example.makeitmeme.R.drawable.meme3
     )
-    val randomImageRes = memeImages[Random.nextInt(memeImages.size)]
-    val memeBitmap = BitmapFactory.decodeResource(context.resources, randomImageRes)
+    val randomImageRes = remember {
+        memeImages[Random.nextInt(memeImages.size)]
+    }
+    val memeBitmap = remember {
+        BitmapFactory.decodeResource(context.resources, randomImageRes)
+    }
     var topText by remember { mutableStateOf("") }
     var bottomText by remember { mutableStateOf("") }
 
