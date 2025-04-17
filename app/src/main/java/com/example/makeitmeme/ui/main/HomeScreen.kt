@@ -114,7 +114,7 @@ fun HomeScreen(user: FirebaseUser, onLogout: () -> Unit) {
         val dbRef = FirebaseDatabase.getInstance()
             .reference.child("messages").child(user.uid)
 
-        RealtimeDatabaseSection(userMessageReference = dbRef)
+        RealtimeDatabaseSection()
 
         Spacer(modifier = Modifier.weight(1f))
 

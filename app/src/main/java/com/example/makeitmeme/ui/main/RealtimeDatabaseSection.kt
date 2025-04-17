@@ -1,130 +1,133 @@
 package com.example.makeitmeme.ui.main
 
-import android.util.Log
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.ValueEventListener
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 
-/**
- * Composable dédié à l'affichage et à l'interaction avec
- * la section message de la Realtime Database pour une référence donnée.
- *
- * @param userMessageReference La DatabaseReference pointant spécifiquement
- *                             vers le nœud 'message' de l'utilisateur actuel.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+
+data class ChatMessage(
+    val user: String = "",
+    val text: String = ""
+)
+
 @Composable
-fun RealtimeDatabaseSection(
-    userMessageReference: DatabaseReference // Reçoit la référence comme paramètre
-) {
-    // --- États locaux pour ce composant ---
-    var messageInput by remember { mutableStateOf("") }
-    var messageFromDb by remember { mutableStateOf<String?>("Chargement...") }
-    var isSaving by remember { mutableStateOf(false) }
-    var dbError by remember { mutableStateOf<String?>(null) }
+fun RealtimeDatabaseSection() {
+    val messageRef = FirebaseDatabase.getInstance().getReference("messages")
+    var messageText by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
 
-    // Scope Coroutine local
-    val coroutineScope = rememberCoroutineScope()
+    val currentUserEmail = FirebaseAuth.getInstance().currentUser?.email ?: "Moi"
 
-    // --- Lire les données RTDB en temps réel ---
-    // L'effet dépend maintenant de la référence passée en paramètre
-    DisposableEffect(userMessageReference) {
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val message = snapshot.getValue(String::class.java)
-                messageFromDb = message
-                dbError = null
-                Log.d("RTDBSection", "Data received for ref: ${snapshot.ref}")
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
 
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("RTDBSection", "Database read failed for ref ${userMessageReference.toString()}: ${error.message}", error.toException())
-                messageFromDb = null
-                dbError = "Erreur lecture BDD: ${error.message}"
-            }
-        }
-        Log.d("RTDBSection", "Adding ValueEventListener for path: ${userMessageReference.toString()}")
-        userMessageReference.addValueEventListener(listener)
+        // ✅ Liste des messages stylée
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .padding(8.dp)
+        ) {
+            items(messages) { msg ->
+                val isMe = msg.user == currentUserEmail
 
-        onDispose {
-            Log.d("RTDBSection", "Removing ValueEventListener for path: ${userMessageReference.toString()}")
-            userMessageReference.removeEventListener(listener)
-        }
-    }
-
-    // --- Interface Utilisateur de la Section RTDB ---
-    Column(
-        modifier = Modifier.fillMaxWidth(), // Prend toute la largeur disponible
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Realtime Database", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (dbError != null) {
-            Text(dbError!!, color = MaterialTheme.colorScheme.error)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        Text("Message enregistré:")
-        Text(
-            text = messageFromDb ?: "(Aucun message)",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = messageInput,
-            onValueChange = { messageInput = it },
-            label = { Text("Nouveau message") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
-            onClick = {
-                if (messageInput.isBlank()) return@Button
-                isSaving = true
-                dbError = null
-                coroutineScope.launch {
-                    try {
-                        // Utilise la référence passée en paramètre
-                        userMessageReference.setValue(messageInput).await()
-                        Log.d("RTDBSection", "Message saved successfully to ${userMessageReference.toString()}!")
-                        messageInput = ""
-                    } catch (e: Exception) {
-                        Log.e("RTDBSection", "Failed to save message to ${userMessageReference.toString()}", e)
-                        dbError = "Erreur sauvegarde: ${e.localizedMessage}"
-                    } finally {
-                        isSaving = false
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                ) {
+                    Surface(
+                        color = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(16.dp),
+                        tonalElevation = 3.dp,
+                        shadowElevation = 2.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .widthIn(max = 280.dp)
+                        ) {
+                            if (!isMe) {
+                                Text(
+                                    text = msg.user,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                            Text(
+                                text = msg.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (isMe)
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
                     }
                 }
-            },
-            enabled = !isSaving
-        ) {
-            if (isSaving) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-            } else {
-                Text("Sauvegarder Message")
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("🚨 N'oubliez pas les règles de sécurité RTDB !", style = MaterialTheme.typography.labelSmall)
+        // ✅ Zone de saisie + bouton d’envoi
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            OutlinedTextField(
+                value = messageText,
+                onValueChange = { messageText = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Écris ton message") }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (messageText.isNotBlank()) {
+                    val newMessage = ChatMessage(user = currentUserEmail, text = messageText)
+
+                    // Ajout local immédiat
+                    messages = messages + newMessage
+
+                    // Envoi dans Firebase
+                    messageRef.push().setValue(newMessage)
+
+                    messageText = ""
+                }
+            }) {
+                Text("Envoyer")
+            }
+        }
+
+        // ✅ Synchronisation Firebase en temps réel
+        DisposableEffect(Unit) {
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val msgList = mutableListOf<ChatMessage>()
+                    for (msgSnap in snapshot.children) {
+                        val msg = msgSnap.getValue(ChatMessage::class.java)
+                        if (msg != null) {
+                            msgList.add(msg)
+                        }
+                    }
+                    messages = msgList
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    println("Firebase error: ${error.message}")
+                }
+            }
+
+            messageRef.addValueEventListener(listener)
+
+            onDispose {
+                messageRef.removeEventListener(listener)
+            }
+        }
     }
 }

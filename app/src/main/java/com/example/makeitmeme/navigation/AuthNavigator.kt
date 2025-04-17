@@ -13,8 +13,8 @@ import com.example.makeitmeme.ui.main.MenuScreen
 import com.example.makeitmeme.ui.main.RealtimeDatabaseSection
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.database.FirebaseDatabase
 
+// Enum pour la navigation entre les écrans
 enum class Screen {
     MENU, JEU, CHAT
 }
@@ -25,7 +25,7 @@ fun AuthNavigator() {
     var currentUser by remember { mutableStateOf<FirebaseUser?>(auth.currentUser) }
     var currentScreen by remember { mutableStateOf(Screen.MENU) }
 
-    // Écouteur d'état d'authentification
+    // Observer les changements de connexion Firebase
     DisposableEffect(Unit) {
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             currentUser = firebaseAuth.currentUser
@@ -36,6 +36,7 @@ fun AuthNavigator() {
         }
     }
 
+    // Navigation entre les écrans
     if (currentUser == null) {
         AuthScreen(
             auth = auth,
@@ -63,7 +64,6 @@ fun AuthNavigator() {
             )
 
             Screen.CHAT -> ChatScreen(
-                user = currentUser!!,
                 onBackToMenu = {
                     currentScreen = Screen.MENU
                 }
@@ -72,25 +72,32 @@ fun AuthNavigator() {
     }
 }
 
+// ✅ ChatScreen avec affichage du chat et bouton retour
 @Composable
-fun ChatScreen(
-    user: FirebaseUser,
-    onBackToMenu: () -> Unit
-) {
-    val ref = FirebaseDatabase.getInstance()
-        .reference.child("messages").child(user.uid)
-
-    Surface(modifier = Modifier.fillMaxSize()) {
+fun ChatScreen(onBackToMenu: () -> Unit) {
+    Scaffold(
+        bottomBar = {
+            Button(
+                onClick = onBackToMenu,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Text("⬅️ Retour au menu")
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(innerPadding)
+                .padding(16.dp)
         ) {
-            RealtimeDatabaseSection(userMessageReference = ref)
-            Button(onClick = onBackToMenu) {
-                Text("⬅️ Retour au menu")
-            }
+            Text("💬 Chat en ligne", style = MaterialTheme.typography.headlineSmall)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 🧠 Le chat (il scrolle sans cacher le bouton)
+            RealtimeDatabaseSection()
         }
     }
 }
